@@ -1,7 +1,7 @@
 # general settings
-name: train_sirs_dsrnet_Iblur_batch4
+name: train_sirs_unet_batch4
 is_train: true
-model_type: DSRNetModel  # Use Lightning module instead of vanilla model
+model_type: UNetModel  # Use Lightning module instead of vanilla model
 num_gpu: auto  # auto: can infer from your visible devices automatically
 manual_seed: 42
 
@@ -66,7 +66,7 @@ datasets:
     # data loader
     use_shuffle: true
     num_worker_per_gpu: 4
-    batch_size_per_gpu: 1
+    batch_size_per_gpu: 4
     dataset_enlarge_ratio: 1
     prefetch_mode: ~
 
@@ -133,12 +133,8 @@ datasets:
 
 # network structures
 network_g:
-  type: DSRNet
-  width: 64
-  middle_blk_num: 12
-  enc_blk_nums: [2,2,4,8]
-  dec_blk_nums: [2,2,2,2]
-  lrm_blk_nums: [2,4]
+  type: UNet
+
 
 # path
 path:
@@ -169,36 +165,6 @@ train:
     losses: [nn.MSELoss(), GradientLoss()]
     weight: [0.3, 0.6]
 
-  # reconstruction loss
-  recon_opt:
-    type: L1Loss
-    loss_weight: 0.2
-    reduction: mean
-
-  # perceptual loss (content and style losses)
-  perceptual_opt:
-    type: PerceptualLoss
-    layer_weights:
-      # before relu
-      'conv1_2': 0.3846
-      'conv2_2': 0.2083
-      'conv3_4': 0.2703
-      'conv4_4': 0.1786
-      'conv5_4': 6.6667
-    vgg_type: vgg19
-    use_input_norm: true
-    perceptual_weight: !!float 0.01
-    style_weight: 0.0
-    range_norm: false
-    criterion: l1
-
-  #  exclusion loss
-  exclusion_opt:
-    type: ExclusionLoss
-    level: 3
-    eps: !!float 0.000001
-    loss_weight: !!float 1.0
-
 # validation settings
 val:
   save_img: True
@@ -206,9 +172,9 @@ val:
 
   metrics:
     psnr:  # metric name
-      type: calculate_psnr_pt
+      type: calculate_psnr
     ssim:
-      type: calculate_ssim_pt
+      type: calculate_ssim
 
 # logging settings
 logger:
