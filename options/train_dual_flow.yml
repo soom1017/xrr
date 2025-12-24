@@ -1,0 +1,187 @@
+# general settings
+name: train_sirs_rectified_dual_flow_euler50_lr5e5
+is_train: true
+model_type: DualHeadFMModel  # Use Lightning module instead of vanilla model
+num_gpu: auto  # auto: can infer from your visible devices automatically
+manual_seed: 42
+
+# Command line options integrated into config
+test_only: false          # Whether to only test the model
+precision: '32-true'      # Precision for training (32-true, 16-mixed, bf16-mixed)
+accelerator: 'auto'       # Accelerator type (auto, gpu, cpu)
+val_check_interval: 1.0     # Validation check interval
+log_every_n_steps: 10     # Log every n steps
+
+# Lightning specific settings
+lightning:
+  max_epochs: 80
+  gradient_clip_val: null
+  accumulate_grad_batches: 1
+  deterministic: true
+  strategy: 'ddp'  # Strategy for distributed training
+  profiler: 'simple'  # Options: null, 'simple', 'advanced' - enable profiling for performance analysis
+  num_sanity_val_steps: 2  # Number of validation steps to run before starting training
+
+# checkpoint settings
+checkpoint:
+  monitor: 'metrics/average/psnr'  # 恢复到原来的val/psnr格式
+  mode: 'max'  # 'max' for psnr, 'min' for loss
+  save_top_k: 3
+  save_last: true
+
+# dataset and data loader settings
+datasets:
+  train:
+    name: general-dataset
+    type: DSRFusionDataset
+    size: 4000  # 对于w_nature
+
+    fused_datasets:
+      - name: real-dataset
+        ratio: 0.2
+        type: DSRTestDataset
+        datadir: /data4/soom/sirs/train/real
+        enable_transforms: True
+        transform_size: 224
+
+      - name: nature-dataset
+        ratio: 0.2
+        type: DSRTestDataset
+        datadir: /data4/soom/sirs/train/nature
+        enable_transforms: True
+        transform_size: 224
+
+      - name: syn-dataset
+        ratio: 0.6
+        type: DSRDataset
+        datadir: /data4/soom/sirs/train/VOCdevkit/VOC2012/PNGImages
+        fns: /data4/soom/sirs/train/VOC2012_224_train_png.txt
+        size: ~
+        enable_transforms: True
+        transform_size: 224
+
+    io_backend:
+      type: disk
+
+    # data loader
+    use_shuffle: true
+    num_worker_per_gpu: 8
+    batch_size_per_gpu: 32
+    dataset_enlarge_ratio: 1
+    prefetch_mode: ~
+
+  val_datasets:
+    - name: Real20
+      type: DSRTestDataset
+      mode: eval
+      datadir: /data4/soom/sirs/test/real20_420
+      io_backend:
+        type: disk
+
+      # data loader for validation
+      use_shuffle: false
+      num_worker_per_gpu: 4
+      batch_size_per_gpu: 1
+
+    - name: SIR2-Objects
+      type: DSRTestDataset
+      mode: eval
+      datadir: /data4/soom/sirs/test/SIR2/SolidObjectDataset
+      io_backend:
+        type: disk
+
+      # data loader for validation
+      use_shuffle: false
+      num_worker_per_gpu: 4
+      batch_size_per_gpu: 1
+
+    - name: SIR2-PostCard
+      type: DSRTestDataset
+      mode: eval
+      datadir: /data4/soom/sirs/test/SIR2/PostcardDataset
+      io_backend:
+        type: disk
+
+      # data loader for validation
+      use_shuffle: false
+      num_worker_per_gpu: 4
+      batch_size_per_gpu: 1
+
+    - name: SIR2-Wild
+      type: DSRTestDataset
+      mode: eval
+      datadir: /data4/soom/sirs/test/SIR2/WildSceneDataset
+      io_backend:
+        type: disk
+
+      # data loader for validation
+      use_shuffle: false
+      num_worker_per_gpu: 4
+      batch_size_per_gpu: 1
+
+    - name: Nature
+      type: DSRTestDataset
+      mode: eval
+      datadir: /data4/soom/sirs/test/Nature
+      io_backend:
+        type: disk
+
+      # data loader for validation
+      use_shuffle: false
+      num_worker_per_gpu: 4
+      batch_size_per_gpu: 1
+
+# network structures
+network_g:
+  type: DualHeadDiTRectifiedFlow
+
+
+# path
+path:
+  pretrain_network_g: ~
+  param_key_g: params
+  strict_load_g: true
+  resume_state: ~
+  experiments_root: experiments  # Root directory for all experiments
+  visualization: ~  # Will be set dynamically in main.py
+  log: ~  # Will be set dynamically in main.py
+
+# training settings
+train:
+  optim_g:
+    type: AdamW  # Using Adam as in original DSIT
+    lr: !!float 5e-5  # Learning rate from original setting
+    weight_decay: 0
+    betas: [ 0.9, 0.999 ]
+
+  scheduler:
+    type: MultiStepLR
+    milestones: [150, 300, 450]
+    gamma: 0.5
+
+  # losses
+  pixel_opt:
+    type: MultipleLoss
+    losses: [nn.MSELoss(), GradientLoss()]
+    weight: [0.3, 0.6]
+
+# validation settings
+val:
+  n_steps: 50
+  save_img: True
+  save_img_top_n: 1
+
+  metrics:
+    psnr:  # metric name
+      type: calculate_psnr
+    ssim:
+      type: calculate_ssim
+
+# logging settings
+logger:
+  tensorboard:
+    flush_secs: 5
+    max_queue: 10
+  wandb:
+    enable: false
+    project: xreflection
